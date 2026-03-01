@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import { useWebSocket } from '@/hooks/use-websocket';
 import { useBlocks } from '@/hooks/use-blocks';
 import { PresenceIndicator } from '@/components/presence-indicator';
@@ -13,14 +13,12 @@ import { Button } from '@/components/ui/button';
 
 export default function PageEditor() {
     const params = useParams();
-    const router = useRouter();
     const id = params.id as string;
 
     const [initialData, setInitialData] = useState<PageWithBlocks | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Fetch initial data
     useEffect(() => {
         async function fetchPage() {
             try {
@@ -43,10 +41,6 @@ export default function PageEditor() {
         }
     }, [id]);
 
-    const onMessage = useCallback((msg: any) => {
-        // This will be handled by handleMessage from useBlocks
-    }, []);
-
     const { send, isConnected, connectionCount } = useWebSocket('ws://localhost:3001', (msg) => {
         if (msg.type !== 'presence') {
             handleMessage(msg);
@@ -60,8 +54,11 @@ export default function PageEditor() {
         updateBlock,
         deleteBlock,
         reorderBlock,
+        toggleChecked,
         updatePageTitle,
         handleMessage,
+        undo,
+        redo,
         clientId,
     } = useBlocks(id, initialData, send);
 
@@ -71,6 +68,23 @@ export default function PageEditor() {
             send({ type: 'join', pageId: id, clientId });
         }
     }, [isConnected, id, send, clientId]);
+
+    // Undo/redo keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const isMod = e.metaKey || e.ctrlKey;
+            if (isMod && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+            } else if (isMod && e.key === 'z' && e.shiftKey) {
+                e.preventDefault();
+                redo();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [undo, redo]);
 
     if (loading) {
         return (
@@ -131,8 +145,9 @@ export default function PageEditor() {
                     blocks={blocks}
                     onUpdate={updateBlock}
                     onDelete={deleteBlock}
-                    onCreate={(afterId) => createBlock(afterId)}
+                    onCreate={(afterId, style, blockType) => createBlock(afterId, style, blockType)}
                     onReorder={reorderBlock}
+                    onToggleChecked={toggleChecked}
                 />
             </div>
         </main>

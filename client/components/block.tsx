@@ -2,13 +2,14 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Block as BlockType, BlockStyle } from '../lib/types';
-import { GripVertical, Plus, MoreVertical, Trash2 } from 'lucide-react';
+import { GripVertical, MoreVertical, Trash2, Type, Heading1, Heading2, Heading3, Minus, CheckSquare } from 'lucide-react';
 import { cn } from '../lib/utils';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
+    DropdownMenuSeparator,
 } from './ui/dropdown-menu';
 
 interface BlockProps {
@@ -17,6 +18,8 @@ interface BlockProps {
     onUpdate: (id: string, changes: { content?: string; style?: BlockStyle }) => void;
     onDelete: (id: string) => void;
     onCreate: (afterId: string, style?: BlockStyle) => void;
+    onCreateTyped: (afterId: string, blockType: 'text' | 'divider' | 'checklist') => void;
+    onToggleChecked: (id: string) => void;
     onFocusNext: (index: number) => void;
     onFocusPrev: (index: number) => void;
     isDragging?: boolean;
@@ -28,6 +31,75 @@ export const Block: React.FC<BlockProps> = ({
     onUpdate,
     onDelete,
     onCreate,
+    onCreateTyped,
+    onToggleChecked,
+    onFocusNext,
+    onFocusPrev,
+    isDragging
+}) => {
+    // Divider block: simple horizontal rule
+    if (block.type === 'divider') {
+        return (
+            <div
+                className={cn(
+                    "group flex items-center gap-2 py-2 px-4 rounded-md transition-colors",
+                    isDragging ? "opacity-50 bg-accent/50" : "hover:bg-accent/20"
+                )}
+            >
+                <div className="mt-0 opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity">
+                    <GripVertical size={16} className="text-muted-foreground" />
+                </div>
+                <div className="flex-1">
+                    <hr className="border-border" />
+                </div>
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                        onClick={() => onDelete(block.id)}
+                        className="p-1 hover:bg-accent rounded-sm text-muted-foreground"
+                    >
+                        <Trash2 size={14} />
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // Text and checklist blocks share contentEditable logic
+    return <EditableBlock
+        block={block}
+        index={index}
+        onUpdate={onUpdate}
+        onDelete={onDelete}
+        onCreate={onCreate}
+        onCreateTyped={onCreateTyped}
+        onToggleChecked={onToggleChecked}
+        onFocusNext={onFocusNext}
+        onFocusPrev={onFocusPrev}
+        isDragging={isDragging}
+    />;
+};
+
+interface EditableBlockProps {
+    block: BlockType;
+    index: number;
+    onUpdate: (id: string, changes: { content?: string; style?: BlockStyle }) => void;
+    onDelete: (id: string) => void;
+    onCreate: (afterId: string, style?: BlockStyle) => void;
+    onCreateTyped: (afterId: string, blockType: 'text' | 'divider' | 'checklist') => void;
+    onToggleChecked: (id: string) => void;
+    onFocusNext: (index: number) => void;
+    onFocusPrev: (index: number) => void;
+    isDragging?: boolean;
+}
+
+const EditableBlock: React.FC<EditableBlockProps> = ({
+    block,
+    index,
+    onUpdate,
+    onDelete,
+    onCreate,
+    onCreateTyped,
+    onToggleChecked,
     onFocusNext,
     onFocusPrev,
     isDragging
@@ -66,7 +138,11 @@ export const Block: React.FC<BlockProps> = ({
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            onCreate(block.id);
+            if (block.type === 'checklist') {
+                onCreateTyped(block.id, 'checklist');
+            } else {
+                onCreate(block.id);
+            }
         } else if (e.key === 'Backspace' && localContent === '') {
             e.preventDefault();
             onDelete(block.id);
@@ -94,6 +170,9 @@ export const Block: React.FC<BlockProps> = ({
         }
     };
 
+    const isChecklist = block.type === 'checklist';
+    const isChecked = isChecklist && block.checked === 1;
+
     return (
         <div
             className={cn(
@@ -101,11 +180,20 @@ export const Block: React.FC<BlockProps> = ({
                 isDragging ? "opacity-50 bg-accent/50" : "hover:bg-accent/20"
             )}
         >
-            <div
-                className="mt-2 opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity"
-            >
+            <div className="mt-2 opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity">
                 <GripVertical size={16} className="text-muted-foreground" />
             </div>
+
+            {isChecklist && (
+                <div className="mt-2.5 flex-shrink-0">
+                    <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => onToggleChecked(block.id)}
+                        className="w-4 h-4 rounded border-border cursor-pointer accent-primary"
+                    />
+                </div>
+            )}
 
             <div className="flex-1 min-h-[1.5em] relative">
                 <div
@@ -118,10 +206,14 @@ export const Block: React.FC<BlockProps> = ({
                     onBlur={() => { isFocused.current = false; }}
                     className={cn(
                         "outline-none w-full break-words",
-                        getStyleClasses(block.style),
+                        isChecklist ? "text-base mt-2 mb-2 leading-relaxed" : getStyleClasses(block.style),
+                        isChecked && "line-through text-muted-foreground",
                         localContent === "" && "before:content-[attr(data-placeholder)] before:text-muted-foreground/50 before:pointer-events-none"
                     )}
-                    data-placeholder={block.style === 'paragraph' ? "Type '/' for commands..." : "Heading..."}
+                    data-placeholder={
+                        isChecklist ? "To-do..." :
+                        block.style === 'paragraph' ? "Type '/' for commands..." : "Heading..."
+                    }
                 />
             </div>
 
@@ -133,13 +225,28 @@ export const Block: React.FC<BlockProps> = ({
                         </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onUpdate(block.id, { style: 'h1' })}>Heading 1</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onUpdate(block.id, { style: 'h2' })}>Heading 2</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onUpdate(block.id, { style: 'h3' })}>Heading 3</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onUpdate(block.id, { style: 'paragraph' })}>Text</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onUpdate(block.id, { style: 'h1' })}>
+                            <Heading1 size={16} className="mr-2" /> Heading 1
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onUpdate(block.id, { style: 'h2' })}>
+                            <Heading2 size={16} className="mr-2" /> Heading 2
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onUpdate(block.id, { style: 'h3' })}>
+                            <Heading3 size={16} className="mr-2" /> Heading 3
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onUpdate(block.id, { style: 'paragraph' })}>
+                            <Type size={16} className="mr-2" /> Text
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => onCreateTyped(block.id, 'divider')}>
+                            <Minus size={16} className="mr-2" /> Divider
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onCreateTyped(block.id, 'checklist')}>
+                            <CheckSquare size={16} className="mr-2" /> Checklist
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => onDelete(block.id)} className="text-destructive">
-                            <Trash2 size={16} className="mr-2" />
-                            Delete
+                            <Trash2 size={16} className="mr-2" /> Delete
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>

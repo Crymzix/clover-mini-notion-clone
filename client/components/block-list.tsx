@@ -1,18 +1,25 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { Block as BlockType, BlockStyle } from '../lib/types';
+import { Block as BlockType, BlockStyle, BlockType as BlockTypeEnum } from '../lib/types';
 import { Block } from './block';
 import { cn } from '../lib/utils';
-import { Plus } from 'lucide-react';
+import { Plus, Minus, CheckSquare, Type } from 'lucide-react';
 import { Button } from './ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from './ui/dropdown-menu';
 
 interface BlockListProps {
     blocks: BlockType[];
     onUpdate: (id: string, changes: { content?: string; style?: BlockStyle }) => void;
     onDelete: (id: string) => void;
-    onCreate: (afterId?: string, style?: BlockStyle) => string | undefined;
+    onCreate: (afterId?: string, style?: BlockStyle, blockType?: BlockTypeEnum) => string | undefined;
     onReorder: (id: string, newSortOrder: number) => void;
+    onToggleChecked: (id: string) => void;
 }
 
 export const BlockList: React.FC<BlockListProps> = ({
@@ -21,6 +28,7 @@ export const BlockList: React.FC<BlockListProps> = ({
     onDelete,
     onCreate,
     onReorder,
+    onToggleChecked,
 }) => {
     const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
     const [dropIndicator, setDropIndicator] = useState<{ id: string; position: 'above' | 'below' } | null>(null);
@@ -156,6 +164,11 @@ export const BlockList: React.FC<BlockListProps> = ({
                                     const newId = onCreate(afterId);
                                     if (newId) pendingFocusId.current = newId;
                                 }}
+                                onCreateTyped={(afterId, blockType) => {
+                                    const newId = onCreate(afterId, 'paragraph', blockType);
+                                    if (newId && blockType !== 'divider') pendingFocusId.current = newId;
+                                }}
+                                onToggleChecked={onToggleChecked}
                                 onFocusNext={focusNext}
                                 onFocusPrev={focusPrev}
                                 isDragging={draggedBlockId === block.id}
@@ -169,15 +182,40 @@ export const BlockList: React.FC<BlockListProps> = ({
                 ))}
             </div>
 
-            <div className="mt-4 px-12 group">
+            <div className="mt-4 px-12 flex items-center gap-1">
                 <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => onCreate()}
-                    className="text-muted-foreground opacity-50 group-hover:opacity-100 transition-opacity"
+                    className="text-muted-foreground opacity-50 hover:opacity-100 transition-opacity"
                 >
                     <Plus size={16} className="mr-2" /> Add a block
                 </Button>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-muted-foreground opacity-50 hover:opacity-100 transition-opacity px-2"
+                        >
+                            <Plus size={14} />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                        <DropdownMenuItem onClick={() => onCreate(undefined, 'paragraph', 'text')}>
+                            <Type size={16} className="mr-2" /> Text
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onCreate(undefined, 'paragraph', 'divider')}>
+                            <Minus size={16} className="mr-2" /> Divider
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => {
+                            const newId = onCreate(undefined, 'paragraph', 'checklist');
+                            if (newId) pendingFocusId.current = newId;
+                        }}>
+                            <CheckSquare size={16} className="mr-2" /> Checklist
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </div>
         </div>
     );

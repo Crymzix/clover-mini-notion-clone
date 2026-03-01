@@ -4,10 +4,11 @@ import { queries } from './db';
 
 type WSMessage =
     | { type: 'join'; pageId: string; clientId: string }
-    | { type: 'block:create'; payload: { id: string; pageId: string; content: string; style: string; sort_order: number } }
+    | { type: 'block:create'; payload: { id: string; pageId: string; blockType: string; content: string; style: string; sort_order: number; checked?: number } }
     | { type: 'block:update'; payload: { id: string; content?: string; style?: string } }
     | { type: 'block:delete'; payload: { id: string } }
     | { type: 'block:reorder'; payload: { id: string; sort_order: number } }
+    | { type: 'block:toggle_checked'; payload: { id: string; checked: number } }
     | { type: 'page:create'; payload: { id: string; title: string } }
     | { type: 'page:update_title'; payload: { pageId: string; title: string } };
 
@@ -63,7 +64,6 @@ function removeClient(ws: WebSocket) {
 function handleMessage(ws: WebSocket, msg: WSMessage) {
     switch (msg.type) {
         case 'join': {
-            // Remove from any previous page
             removeClient(ws);
 
             const { pageId } = msg;
@@ -73,14 +73,13 @@ function handleMessage(ws: WebSocket, msg: WSMessage) {
             pageConnections.get(pageId)!.add(ws);
             clientPages.set(ws, pageId);
 
-            // Send presence count to all clients including the new one
             broadcastPresence(pageId);
             break;
         }
 
         case 'block:create': {
-            const { id, pageId, content, style, sort_order } = msg.payload;
-            queries.createBlock.run(id, pageId, 'text', content, style, sort_order);
+            const { id, pageId, blockType, content, style, sort_order, checked } = msg.payload;
+            queries.createBlock.run(id, pageId, blockType, content, style, sort_order, checked ?? 0);
             const clientPageId = clientPages.get(ws);
             if (clientPageId) {
                 broadcast(clientPageId, msg, ws);
@@ -117,6 +116,16 @@ function handleMessage(ws: WebSocket, msg: WSMessage) {
         case 'block:reorder': {
             const { id, sort_order } = msg.payload;
             queries.updateBlockSortOrder.run(sort_order, id);
+            const clientPageId = clientPages.get(ws);
+            if (clientPageId) {
+                broadcast(clientPageId, msg, ws);
+            }
+            break;
+        }
+
+        case 'block:toggle_checked': {
+            const { id, checked } = msg.payload;
+            queries.updateBlockChecked.run(checked, id);
             const clientPageId = clientPages.get(ws);
             if (clientPageId) {
                 broadcast(clientPageId, msg, ws);
