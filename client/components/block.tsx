@@ -35,6 +35,7 @@ export const Block: React.FC<BlockProps> = ({
     const contentRef = useRef<HTMLDivElement>(null);
     const [localContent, setLocalContent] = useState(block.content);
     const isFocused = useRef(false);
+    const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
     // Sync with remote updates ONLY when not focused
     useEffect(() => {
@@ -56,15 +57,16 @@ export const Block: React.FC<BlockProps> = ({
     const handleInput = useCallback(() => {
         const newContent = contentRef.current?.innerText || '';
         setLocalContent(newContent);
-        // Debounce could be added here, but for now we update directly in optimistic state
-        onUpdate(block.id, { content: newContent });
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            onUpdate(block.id, { content: newContent });
+        }, 300);
     }, [block.id, onUpdate]);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             onCreate(block.id);
-            onFocusNext(index);
         } else if (e.key === 'Backspace' && localContent === '') {
             e.preventDefault();
             onDelete(block.id);
@@ -101,7 +103,6 @@ export const Block: React.FC<BlockProps> = ({
         >
             <div
                 className="mt-2 opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity"
-                draggable
             >
                 <GripVertical size={16} className="text-muted-foreground" />
             </div>

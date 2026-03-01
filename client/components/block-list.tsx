@@ -11,7 +11,7 @@ interface BlockListProps {
     blocks: BlockType[];
     onUpdate: (id: string, changes: { content?: string; style?: BlockStyle }) => void;
     onDelete: (id: string) => void;
-    onCreate: (afterId?: string, style?: BlockStyle) => void;
+    onCreate: (afterId?: string, style?: BlockStyle) => string | undefined;
     onReorder: (id: string, newSortOrder: number) => void;
 }
 
@@ -31,6 +31,11 @@ export const BlockList: React.FC<BlockListProps> = ({
         setDraggedBlockId(id);
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('blockId', id);
+    };
+
+    const handleDragEnd = () => {
+        setDraggedBlockId(null);
+        setDropIndicator(null);
     };
 
     const handleDragOver = (e: React.DragEvent, id: string) => {
@@ -85,33 +90,41 @@ export const BlockList: React.FC<BlockListProps> = ({
         setDropIndicator(null);
     };
 
+    const pendingFocusId = useRef<string | null>(null);
+
     const setBlockRef = (id: string, el: HTMLElement | null) => {
         blockRefs.current[id] = el;
     };
 
-    const focusPrev = useCallback((index: number) => {
-        if (index > 0) {
-            const prevId = blocks[index - 1].id;
-            const prevEl = blockRefs.current[prevId]?.querySelector('[contenteditable]');
-            (prevEl as HTMLElement)?.focus();
+    // Focus a block by ID once it's rendered
+    useEffect(() => {
+        if (pendingFocusId.current) {
+            const el = blockRefs.current[pendingFocusId.current]?.querySelector('[contenteditable]');
+            if (el) {
+                (el as HTMLElement).focus();
+                pendingFocusId.current = null;
+            }
         }
     }, [blocks]);
 
+    const focusBlock = useCallback((id: string) => {
+        const el = blockRefs.current[id]?.querySelector('[contenteditable]');
+        if (el) {
+            (el as HTMLElement).focus();
+        }
+    }, []);
+
+    const focusPrev = useCallback((index: number) => {
+        if (index > 0) {
+            focusBlock(blocks[index - 1].id);
+        }
+    }, [blocks, focusBlock]);
+
     const focusNext = useCallback((index: number) => {
-        // Need a bit of delay for the new block to be rendered
-        setTimeout(() => {
-            if (index < blocks.length - 1) {
-                const nextId = blocks[index + 1].id;
-                const nextEl = blockRefs.current[nextId]?.querySelector('[contenteditable]');
-                (nextEl as HTMLElement)?.focus();
-            } else if (index === blocks.length - 1) {
-                // Target is now at the end
-                const lastId = blocks[blocks.length - 1].id;
-                const lastEl = blockRefs.current[lastId]?.querySelector('[contenteditable]');
-                (lastEl as HTMLElement)?.focus();
-            }
-        }, 50);
-    }, [blocks]);
+        if (index < blocks.length - 1) {
+            focusBlock(blocks[index + 1].id);
+        }
+    }, [blocks, focusBlock]);
 
     return (
         <div ref={containerRef} className="max-w-3xl mx-auto pb-64">
@@ -131,6 +144,7 @@ export const BlockList: React.FC<BlockListProps> = ({
                         <div
                             draggable
                             onDragStart={(e) => handleDragStart(e, block.id)}
+                            onDragEnd={handleDragEnd}
                             className={cn(draggedBlockId === block.id && "bg-accent/50 opacity-50")}
                         >
                             <Block
@@ -138,7 +152,10 @@ export const BlockList: React.FC<BlockListProps> = ({
                                 index={index}
                                 onUpdate={onUpdate}
                                 onDelete={onDelete}
-                                onCreate={(afterId) => onCreate(afterId)}
+                                onCreate={(afterId) => {
+                                    const newId = onCreate(afterId);
+                                    if (newId) pendingFocusId.current = newId;
+                                }}
                                 onFocusNext={focusNext}
                                 onFocusPrev={focusPrev}
                                 isDragging={draggedBlockId === block.id}

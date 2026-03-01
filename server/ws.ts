@@ -4,10 +4,10 @@ import { queries } from './db';
 
 type WSMessage =
   | { type: 'join'; pageId: string; clientId: string }
-  | { type: 'block:create'; payload: { id: string; pageId: string; content: string; style: string; sortOrder: number } }
+  | { type: 'block:create'; payload: { id: string; pageId: string; content: string; style: string; sort_order: number } }
   | { type: 'block:update'; payload: { id: string; content?: string; style?: string } }
   | { type: 'block:delete'; payload: { id: string } }
-  | { type: 'block:reorder'; payload: { id: string; sortOrder: number } }
+  | { type: 'block:reorder'; payload: { id: string; sort_order: number } }
   | { type: 'page:update_title'; payload: { pageId: string; title: string } };
 
 // Map pageId → set of connected clients
@@ -67,8 +67,8 @@ function handleMessage(ws: WebSocket, msg: WSMessage) {
     }
 
     case 'block:create': {
-      const { id, pageId, content, style, sortOrder } = msg.payload;
-      queries.createBlock.run(id, pageId, 'text', content, style, sortOrder);
+      const { id, pageId, content, style, sort_order } = msg.payload;
+      queries.createBlock.run(id, pageId, 'text', content, style, sort_order);
       const clientPageId = clientPages.get(ws);
       if (clientPageId) {
         broadcast(clientPageId, msg, ws);
@@ -103,8 +103,8 @@ function handleMessage(ws: WebSocket, msg: WSMessage) {
     }
 
     case 'block:reorder': {
-      const { id, sortOrder } = msg.payload;
-      queries.updateBlockSortOrder.run(sortOrder, id);
+      const { id, sort_order } = msg.payload;
+      queries.updateBlockSortOrder.run(sort_order, id);
       const clientPageId = clientPages.get(ws);
       if (clientPageId) {
         broadcast(clientPageId, msg, ws);
