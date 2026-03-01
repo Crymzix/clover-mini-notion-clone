@@ -1,19 +1,33 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Page } from '@/lib/types';
+import { Page, WSMessage } from '@/lib/types';
 import { FileText, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { v4 as uuid } from 'uuid';
 import { useRouter } from 'next/navigation';
+import { useWebSocket } from '@/hooks/use-websocket';
 
 export default function Home() {
     const [pages, setPages] = useState<Page[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
+
+    const { send } = useWebSocket('ws://localhost:3001', useCallback((msg: WSMessage) => {
+        if (msg.type === 'page:create') {
+            setPages(prev => {
+                if (prev.find(p => p.id === msg.payload.id)) return prev;
+                return [{ id: msg.payload.id, title: msg.payload.title }, ...prev];
+            });
+        } else if (msg.type === 'page:update_title') {
+            setPages(prev => prev.map(p =>
+                p.id === msg.payload.pageId ? { ...p, title: msg.payload.title } : p
+            ));
+        }
+    }, []));
 
     useEffect(() => {
         async function fetchPages() {
@@ -35,26 +49,12 @@ export default function Home() {
         fetchPages();
     }, []);
 
-    const createNewPage = async () => {
-        try {
-            const response = await fetch('http://localhost:3001/api/pages', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ title: 'Untitled' }),
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to create page');
-            }
-
-            const { id } = await response.json();
-            router.push(`/page/${id}`);
-        } catch (err) {
-            console.error('Failed to create page:', err);
-            alert('Failed to create a new page. Is the server running?');
-        }
+    const createNewPage = () => {
+        const id = uuid();
+        const title = 'Untitled';
+        setPages(prev => [{ id, title }, ...prev]);
+        send({ type: 'page:create', payload: { id, title } });
+        router.push(`/page/${id}`);
     };
 
     if (loading) {

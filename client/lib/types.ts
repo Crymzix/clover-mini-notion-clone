@@ -27,5 +27,6 @@ export type WSMessage =
     | { type: 'block:update'; payload: { id: string; content?: string; style?: string } }
     | { type: 'block:delete'; payload: { id: string } }
     | { type: 'block:reorder'; payload: { id: string; sort_order: number } }
+    | { type: 'page:create'; payload: { id: string; title: string } }
     | { type: 'page:update_title'; payload: { pageId: string; title: string } }
     | { type: 'presence'; count: number };
