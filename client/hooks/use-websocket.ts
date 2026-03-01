@@ -9,6 +9,8 @@ export function useWebSocket(url: string, onMessage: (msg: WSMessage) => void) {
     const wsRef = useRef<WebSocket | null>(null);
     const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const reconnectDelayRef = useRef(1000);
+    const onMessageRef = useRef(onMessage);
+    onMessageRef.current = onMessage;
 
     const connect = useCallback(() => {
         if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -27,7 +29,7 @@ export function useWebSocket(url: string, onMessage: (msg: WSMessage) => void) {
                 if (message.type === 'presence') {
                     setConnectionCount(message.count);
                 } else {
-                    onMessage(message);
+                    onMessageRef.current(message);
                 }
             } catch (error) {
                 console.error('Failed to parse WebSocket message:', error);
@@ -48,7 +50,7 @@ export function useWebSocket(url: string, onMessage: (msg: WSMessage) => void) {
         };
 
         wsRef.current = ws;
-    }, [url, onMessage]);
+    }, [url]);
 
     useEffect(() => {
         connect();

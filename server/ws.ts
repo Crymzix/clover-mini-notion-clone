@@ -63,9 +63,6 @@ function handleMessage(ws: WebSocket, msg: WSMessage) {
 
       // Send presence count to all clients including the new one
       broadcastPresence(pageId);
-      // Also send presence to the joining client directly (since broadcast may exclude or not)
-      const count = pageConnections.get(pageId)!.size;
-      ws.send(JSON.stringify({ type: 'presence', count }));
       break;
     }
 
